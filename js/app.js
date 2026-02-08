@@ -30,12 +30,14 @@ const DOM = {};
 // --- FIREBASE CONFIG (RECIBOS ESCOLA CRESCER) ---
 // ⚠️ ATENÇÃO: Substitua os dados abaixo pelos do seu NOVO projeto 'reciboescolacrescer'
 const firebaseConfig = {
-    apiKey: "COLE_SUA_NOVA_API_KEY_AQUI",
-    authDomain: "reciboescolacrescer.firebaseapp.com",
-    projectId: "reciboescolacrescer",
-    storageBucket: "reciboescolacrescer.firebasestorage.app",
-    messagingSenderId: "COLE_SEU_SENDER_ID_AQUI",
-    appId: "COLE_SEU_APP_ID_AQUI" 
+     
+    apiKey: "AIzaSyAIvyd3lFBthsIs2wVPgxTOsUrHzWyCePU",
+    authDomain: "reciboescolarcrescer.firebaseapp.com",
+    projectId: "reciboescolarcrescer",
+    storageBucket: "reciboescolarcrescer.firebasestorage.app",
+    messagingSenderId: "110388969541",
+    appId: "1:110388969541:web:7cf84d2e891002a7e2632c"
+ 
 };
 
 // Se o appId acima for muito complexo, você pode usar uma string fixa para o caminho do banco:
@@ -618,3 +620,4 @@ function showModal(title, msg) {
 }
 
 window.addEventListener('DOMContentLoaded', init);
+
