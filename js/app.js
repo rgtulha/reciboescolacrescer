@@ -28,20 +28,16 @@ const AppState = {
 const DOM = {};
 
 // --- FIREBASE CONFIG (RECIBOS ESCOLA CRESCER) ---
-// ⚠️ ATENÇÃO: Substitua os dados abaixo pelos do seu NOVO projeto 'reciboescolacrescer'
 const firebaseConfig = {
-     
     apiKey: "AIzaSyAIvyd3lFBthsIs2wVPgxTOsUrHzWyCePU",
     authDomain: "reciboescolarcrescer.firebaseapp.com",
     projectId: "reciboescolarcrescer",
     storageBucket: "reciboescolarcrescer.firebasestorage.app",
     messagingSenderId: "110388969541",
     appId: "1:110388969541:web:7cf84d2e891002a7e2632c"
- 
 };
 
-// Se o appId acima for muito complexo, você pode usar uma string fixa para o caminho do banco:
-// Mas recomendo usar o próprio appId que o firebase fornecer.
+// Usamos o appId da configuração para o caminho do banco de dados
 const appId = firebaseConfig.appId; 
 
 let db, auth;
@@ -159,7 +155,16 @@ function showLoginForm() {
         } catch (error) {
             console.error(error);
             document.getElementById('btnLogin').innerText = "Entrar";
-            errorMsg.textContent = "E-mail ou senha incorretos.";
+            
+            // Tratamento de erro mais amigável
+            let msg = "E-mail ou senha incorretos.";
+            if (error.code === 'auth/operation-not-allowed') {
+                msg = "O login por e-mail/senha não está ativado no Firebase Console.";
+            } else if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                msg = "Usuário não encontrado. Crie a conta no Firebase Console.";
+            }
+            
+            errorMsg.textContent = msg;
             errorMsg.classList.remove('hidden');
         }
     });
@@ -171,7 +176,6 @@ function showLoggedInState() {
 
     container.classList.remove('items-center', 'justify-center');
 
-    // TÍTULO ALTERADO AQUI
     container.innerHTML = `
         <div class="sticky top-10 z-10 p-8 bg-white rounded-xl shadow-lg border border-teal-100 relative mt-4 text-center">
             <button id="btnLogout" class="absolute top-2 right-2 text-xs text-red-500 hover:underline">Sair</button>
@@ -194,6 +198,7 @@ function setupFirestoreListeners() {
         renderEmployeeList();
     }, (error) => {
         console.error("Erro de Permissão:", error);
+        // Se der erro de permissão, é porque as regras do Firestore não foram coladas no projeto novo
     });
 }
 
@@ -620,4 +625,3 @@ function showModal(title, msg) {
 }
 
 window.addEventListener('DOMContentLoaded', init);
-
