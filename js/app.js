@@ -27,22 +27,26 @@ const AppState = {
 
 const DOM = {};
 
-// --- FIREBASE CONFIG ---
-const appId = '1:468868061475:web:dc4bfbf02eeae989a61496'; 
+// --- FIREBASE CONFIG (RECIBOS ESCOLA CRESCER) ---
+// ⚠️ ATENÇÃO: Substitua os dados abaixo pelos do seu NOVO projeto 'reciboescolacrescer'
 const firebaseConfig = {
-    apiKey: "AIzaSyDWt4fgnCiHECnOF-lNMsvtc1Cwe1SmYXc",
-    authDomain: "controlevenda-ef7db.firebaseapp.com",
-    projectId: "controlevenda-ef7db",
-    storageBucket: "controlevenda-ef7db.firebasestorage.app",
-    messagingSenderId: "468868061475",
-    appId: appId
+    apiKey: "COLE_SUA_NOVA_API_KEY_AQUI",
+    authDomain: "reciboescolacrescer.firebaseapp.com",
+    projectId: "reciboescolacrescer",
+    storageBucket: "reciboescolacrescer.firebasestorage.app",
+    messagingSenderId: "COLE_SEU_SENDER_ID_AQUI",
+    appId: "COLE_SEU_APP_ID_AQUI" 
 };
+
+// Se o appId acima for muito complexo, você pode usar uma string fixa para o caminho do banco:
+// Mas recomendo usar o próprio appId que o firebase fornecer.
+const appId = firebaseConfig.appId; 
 
 let db, auth;
 
 // --- INICIALIZAÇÃO ---
 async function init() {
-    console.log("Iniciando Aplicação...");
+    console.log("Iniciando Aplicação - Recibos Escola Crescer...");
     cacheDOM();
     setupEventListeners();
 
@@ -78,7 +82,7 @@ function cacheDOM() {
         'receipt-total', 'receipt-payer', 'receipt-cnpj', 'employee-name', 'employee-cpf',
         'receipt-period-info', 'receipt-daily-value', 'receipt-holidays-info',
         'receipt-total-words-label', 'receipt-total-words', 'employee-signature-name', 'receipt-description',
-        'newReceiptButton' // ID do novo botão adicionado aqui
+        'newReceiptButton'
     ];
 
     ids.forEach(id => {
@@ -114,7 +118,7 @@ async function initFirebase() {
 
     } catch (error) {
         console.error("Erro Firebase:", error);
-        showModal("Erro Fatal", "Não foi possível conectar ao sistema.");
+        showModal("Erro de Configuração", "Verifique as chaves do Firebase no arquivo app.js");
     }
 }
 
@@ -124,18 +128,19 @@ function showLoginForm() {
     if (!container) return;
     
     container.classList.remove('hidden');
+    container.classList.remove('items-center', 'justify-center'); 
     DOM['receipt-content']?.classList.add('hidden');
 
     container.innerHTML = `
-        <div class="p-8 bg-white rounded-xl shadow-lg border border-stone-200 max-w-sm mx-auto">
-            <h2 class="text-2xl font-bold text-teal-700 mb-4">Acesso Restrito</h2>
-            <p class="text-stone-600 mb-4 text-sm">Faça login para acessar o sistema.</p>
+        <div class="sticky top-10 z-10 p-8 bg-white rounded-xl shadow-lg border border-stone-200 max-w-sm mx-auto mt-4">
+            <h2 class="text-2xl font-bold text-teal-700 mb-4 text-center">Acesso Restrito</h2>
+            <p class="text-stone-600 mb-4 text-sm text-center">Faça login para acessar o sistema.</p>
             
             <input type="email" id="loginEmail" placeholder="E-mail" class="w-full mb-3 px-3 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-teal-500">
             <input type="password" id="loginPass" placeholder="Senha" class="w-full mb-4 px-3 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-teal-500">
             
             <button id="btnLogin" class="w-full bg-teal-600 text-white py-2 rounded hover:bg-teal-700 transition font-bold">Entrar</button>
-            <p id="loginError" class="text-red-500 text-xs mt-2 hidden"></p>
+            <p id="loginError" class="text-red-500 text-xs mt-2 hidden text-center"></p>
         </div>
     `;
 
@@ -162,12 +167,14 @@ function showLoggedInState() {
     const container = DOM['welcome-message'];
     if (!container) return;
 
-    // AQUI: Adicionadas as classes 'sticky', 'top-8' e 'z-10' para flutuar
+    container.classList.remove('items-center', 'justify-center');
+
+    // TÍTULO ALTERADO AQUI
     container.innerHTML = `
-        <div class="sticky top-8 z-10 p-8 bg-white rounded-xl shadow-lg border border-teal-100 relative">
+        <div class="sticky top-10 z-10 p-8 bg-white rounded-xl shadow-lg border border-teal-100 relative mt-4 text-center">
             <button id="btnLogout" class="absolute top-2 right-2 text-xs text-red-500 hover:underline">Sair</button>
-            <h2 class="text-3xl font-bold text-teal-700 mb-2">Gerador de Recibos</h2>
-            <p class="text-stone-600 max-w-md">Logado como: <strong>${AppState.user.email}</strong></p>
+            <h2 class="text-3xl font-bold text-teal-700 mb-2">Recibos Escola Crescer</h2>
+            <p class="text-stone-600 max-w-md mx-auto">Logado como: <strong>${AppState.user.email}</strong></p>
             <p class="text-stone-500 text-sm mt-2">Selecione uma funcionária ao lado para começar.</p>
         </div>
     `;
@@ -215,7 +222,6 @@ function setupEventListeners() {
         });
     });
 
-    // Correção Matutino/Vespertino
     DOM.internPeriod?.addEventListener('change', (e) => {
         AppState.selection.internPeriod = e.target.value;
         updateReceiptPreview();
@@ -232,24 +238,17 @@ function setupEventListeners() {
         updateReceiptPreview();
     });
 
-    // --- LÓGICA DO BOTÃO NOVO RECIBO ---
     DOM.newReceiptButton?.addEventListener('click', () => {
-        // 1. Limpa a funcionária selecionada
         AppState.selection.employee = null;
-        
-        // 2. Limpa as faltas e atestados (pois são de outra pessoa)
         AppState.selection.absences.clear();
         AppState.selection.certificates.clear();
 
-        // 3. Troca a visualização
         DOM['receipt-content'].classList.add('hidden');
         DOM['welcome-message'].classList.remove('hidden');
         
-        // 4. Atualiza a UI (Remove seleção da lista e limpa calendário)
+        showLoggedInState(); 
         renderEmployeeList();
         renderCalendar();
-
-        // Obs: Mantemos as DATAS e o TIPO DE RECIBO para facilitar lançamentos em lote.
     });
 
     DOM.addEmployeeButton?.addEventListener('click', handleAddEmployee);
