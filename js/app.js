@@ -37,7 +37,6 @@ const firebaseConfig = {
     appId: "1:110388969541:web:7cf84d2e891002a7e2632c"
 };
 
-// Usamos o appId da configuração para o caminho do banco de dados
 const appId = firebaseConfig.appId; 
 
 let db, auth;
@@ -156,7 +155,6 @@ function showLoginForm() {
             console.error(error);
             document.getElementById('btnLogin').innerText = "Entrar";
             
-            // Tratamento de erro mais amigável
             let msg = "E-mail ou senha incorretos.";
             if (error.code === 'auth/operation-not-allowed') {
                 msg = "O login por e-mail/senha não está ativado no Firebase Console.";
@@ -198,7 +196,6 @@ function setupFirestoreListeners() {
         renderEmployeeList();
     }, (error) => {
         console.error("Erro de Permissão:", error);
-        // Se der erro de permissão, é porque as regras do Firestore não foram coladas no projeto novo
     });
 }
 
@@ -234,8 +231,10 @@ function setupEventListeners() {
         updateReceiptPreview();
     });
 
+    // Alterado para chamar changeCalendarMonth
     DOM.prevMonth?.addEventListener('click', () => changeCalendarMonth(-1));
     DOM.nextMonth?.addEventListener('click', () => changeCalendarMonth(1));
+    
     DOM.markTypeRadios.forEach(radio => radio.addEventListener('change', (e) => AppState.ui.currentMarkType = e.target.value));
     
     DOM.clearMarkingButton?.addEventListener('click', () => {
@@ -355,26 +354,25 @@ function renderEmployeeList() {
     });
 }
 
+// --- SINCRONIZAÇÃO TOTAL: ITEM 3 <-> ITEM 4 ---
+
 function updateCalendarContext() {
     let start;
-    if (AppState.selection.startDate) start = new Date(AppState.selection.startDate + 'T00:00:00');
-    else start = new Date();
-
-    if (AppState.selection.receiptType === 'valeTransporte') {
-        AppState.ui.calendarMonth = start.getMonth() - 1;
-        AppState.ui.calendarYear = start.getFullYear();
-        if (AppState.ui.calendarMonth < 0) {
-            AppState.ui.calendarMonth = 11;
-            AppState.ui.calendarYear--;
-        }
+    if (AppState.selection.startDate) {
+        start = new Date(AppState.selection.startDate + 'T12:00:00');
     } else {
-        AppState.ui.calendarMonth = start.getMonth();
-        AppState.ui.calendarYear = start.getFullYear();
+        start = new Date();
     }
+
+    // FORÇA O CALENDÁRIO A SER IGUAL À DATA DE INÍCIO (Sincronia 1: Input -> Calendário)
+    AppState.ui.calendarMonth = start.getMonth();
+    AppState.ui.calendarYear = start.getFullYear();
+    
     renderCalendar();
 }
 
 function changeCalendarMonth(delta) {
+    // 1. Muda o mês do calendário visual
     AppState.ui.calendarMonth += delta;
     if (AppState.ui.calendarMonth > 11) {
         AppState.ui.calendarMonth = 0;
@@ -383,7 +381,29 @@ function changeCalendarMonth(delta) {
         AppState.ui.calendarMonth = 11;
         AppState.ui.calendarYear--;
     }
+
+    // 2. FORÇA OS INPUTS A SEREM IGUAIS AO NOVO MÊS (Sincronia 2: Calendário -> Input)
+    const year = AppState.ui.calendarYear;
+    const month = AppState.ui.calendarMonth; // 0-11
+
+    const firstDay = 1;
+    const lastDay = new Date(year, month + 1, 0).getDate();
+
+    const strMonth = String(month + 1).padStart(2, '0');
+    const strFirst = String(firstDay).padStart(2, '0');
+    const strLast = String(lastDay).padStart(2, '0');
+
+    const newStart = `${year}-${strMonth}-${strFirst}`;
+    const newEnd = `${year}-${strMonth}-${strLast}`;
+
+    if(DOM.startDate) DOM.startDate.value = newStart;
+    if(DOM.endDate) DOM.endDate.value = newEnd;
+
+    AppState.selection.startDate = newStart;
+    AppState.selection.endDate = newEnd;
+
     renderCalendar();
+    updateReceiptPreview();
 }
 
 function renderCalendar() {
@@ -481,6 +501,24 @@ function updateReceiptPreview() {
     const calculations = calculateWorkingDays(start, end, AppState.selection.absences, AppState.selection.certificates);
     const periodString = `<strong>Período:</strong> ${formatDate(start)} até ${formatDate(end)}<br>`;
 
+    // --- LÓGICA PARA FORMATAR A LISTA DE DATAS ---
+    const getFormattedList = (set) => {
+        const s = new Date(start);
+        const e = new Date(end);
+        const list = Array.from(set)
+            .filter(dtStr => {
+                const dt = new Date(dtStr + 'T00:00:00');
+                return dt >= s && dt <= e;
+            })
+            .sort()
+            .map(dt => formatDate(dt));
+        
+        return list.length > 0 ? list.join(', ') : null;
+    };
+
+    const absenceList = getFormattedList(AppState.selection.absences);
+    const certList = getFormattedList(AppState.selection.certificates);
+
     let totalValue = 0;
     let descriptionText = '';
     let detailsHtml = '';
@@ -489,17 +527,24 @@ function updateReceiptPreview() {
         DOM['receipt-title'].textContent = "Recibo de Vale Transporte";
         const totalBusinessDays = calculations.effectiveDays + calculations.absenceCount + calculations.certificateCount; 
         const prevMonthAbsences = AppState.selection.absences.size; 
-        const prevMonthCerts = AppState.selection.certificates.size;
-        const effectiveDaysForVT = totalBusinessDays - (prevMonthAbsences + prevMonthCerts);
+        
+        // CORREÇÃO: Não subtrai os atestados do cálculo financeiro
+        const effectiveDaysForVT = totalBusinessDays - prevMonthAbsences;
         totalValue = effectiveDaysForVT * RECEIPT_CONFIG.dailyValue;
         if(totalValue < 0) totalValue = 0; 
 
         descriptionText = "REFERENTE AO VALE TRANSPORTE";
+        
+        let discountDetails = '';
+        if (absenceList) discountDetails += `<div class="text-red-600">Descontos (Faltas): ${absenceList}</div>`;
+        if (certList) discountDetails += `<div class="text-stone-600">Atestados: ${certList}</div>`;
+        if (!absenceList && !certList) discountDetails = '<div class="text-stone-500 text-xs">Sem descontos ou atestados</div>';
+
         detailsHtml = `
             ${periodString}
             <strong>Valor Diário:</strong> ${formatCurrency(RECEIPT_CONFIG.dailyValue)}<br>
             <strong>Dias Úteis no Período:</strong> ${totalBusinessDays}<br>
-            <span class="text-red-600">Descontos (Mês Anterior): ${prevMonthAbsences + prevMonthCerts} dias</span>
+            ${discountDetails}
         `;
     } 
     else if (type === 'salarioEstagiario') {
@@ -510,10 +555,15 @@ function updateReceiptPreview() {
         totalValue = RECEIPT_CONFIG.monthlyAllowance - discount;
         if(totalValue < 0) totalValue = 0;
 
+        let details = '';
+        if (absenceList) details += `<div class="text-red-600">Faltas descontadas: ${absenceList}</div>`;
+        if (certList) details += `<div class="text-stone-600">Atestados: ${certList}</div>`;
+        if (!absenceList && !certList) details = '<div class="text-stone-500 text-xs">Sem faltas ou atestados</div>';
+
         detailsHtml = `
             ${periodString}
             <strong>Valor Mensal:</strong> ${formatCurrency(RECEIPT_CONFIG.monthlyAllowance)}<br>
-            <span class="text-red-600">Faltas descontadas: ${calculations.absenceCount} dias</span>
+            ${details}
         `;
     }
     else if (type === 'bonificacao') {
@@ -521,7 +571,11 @@ function updateReceiptPreview() {
         descriptionText = "REFERENTE À BONIFICAÇÃO";
         if (calculations.absenceCount > 0 || calculations.certificateCount > 0) {
             totalValue = 0;
-            detailsHtml = `${periodString}<span class="text-red-600 font-bold">Bonificação cancelada devido a faltas/atestados.</span>`;
+            let motive = [];
+            if(absenceList) motive.push(`Faltas: ${absenceList}`);
+            if(certList) motive.push(`Atestados: ${certList}`);
+            
+            detailsHtml = `${periodString}<span class="text-red-600 font-bold">Bonificação cancelada.</span><br><span class="text-xs text-red-500">Motivo: ${motive.join(' / ')}</span>`;
         } else {
             totalValue = RECEIPT_CONFIG.fixedBonusAmount;
             detailsHtml = `${periodString}<strong>Valor Integral:</strong> ${formatCurrency(totalValue)}`;
@@ -540,7 +594,7 @@ function updateReceiptPreview() {
     }
 }
 
-// --- CRUD E ARQUIVOS ---
+// --- CRUD E ARQUIVOS (AGILIDADE NO CADASTRO) ---
 async function handleAddEmployee() {
     const nome = DOM.newEmployeeName.value.trim();
     let cpf = DOM.newEmployeeCpf.value.trim();
@@ -556,9 +610,14 @@ async function handleAddEmployee() {
             nome: capitalizeWords(nome), 
             cpf: formattedCpf 
         });
-        showModal("Sucesso", "Funcionária adicionada.");
+        
+        showModal("Sucesso", "Funcionária adicionada com sucesso!");
+        
+        // LIMPA OS CAMPOS E FOCA NO NOME PARA A PRÓXIMA
         DOM.newEmployeeName.value = '';
         DOM.newEmployeeCpf.value = '';
+        DOM.newEmployeeName.focus();
+
     } catch (e) {
         console.error(e);
         if (e.code === 'permission-denied') showModal("Sem Permissão", "Você precisa estar logado para salvar.");
