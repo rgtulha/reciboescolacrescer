@@ -195,7 +195,7 @@ function setupFirestoreListeners() {
         AppState.employees.sort((a, b) => a.nome.localeCompare(b.nome));
         renderEmployeeList();
     }, (error) => {
-        console.error("Erro de Permissão:", error);
+        console.error("Erro de Permissão (Leitura):", error);
     });
 }
 
@@ -231,10 +231,8 @@ function setupEventListeners() {
         updateReceiptPreview();
     });
 
-    // Alterado para chamar changeCalendarMonth
     DOM.prevMonth?.addEventListener('click', () => changeCalendarMonth(-1));
     DOM.nextMonth?.addEventListener('click', () => changeCalendarMonth(1));
-    
     DOM.markTypeRadios.forEach(radio => radio.addEventListener('change', (e) => AppState.ui.currentMarkType = e.target.value));
     
     DOM.clearMarkingButton?.addEventListener('click', () => {
@@ -364,7 +362,6 @@ function updateCalendarContext() {
         start = new Date();
     }
 
-    // FORÇA O CALENDÁRIO A SER IGUAL À DATA DE INÍCIO (Sincronia 1: Input -> Calendário)
     AppState.ui.calendarMonth = start.getMonth();
     AppState.ui.calendarYear = start.getFullYear();
     
@@ -372,7 +369,6 @@ function updateCalendarContext() {
 }
 
 function changeCalendarMonth(delta) {
-    // 1. Muda o mês do calendário visual
     AppState.ui.calendarMonth += delta;
     if (AppState.ui.calendarMonth > 11) {
         AppState.ui.calendarMonth = 0;
@@ -382,9 +378,8 @@ function changeCalendarMonth(delta) {
         AppState.ui.calendarYear--;
     }
 
-    // 2. FORÇA OS INPUTS A SEREM IGUAIS AO NOVO MÊS (Sincronia 2: Calendário -> Input)
     const year = AppState.ui.calendarYear;
-    const month = AppState.ui.calendarMonth; // 0-11
+    const month = AppState.ui.calendarMonth;
 
     const firstDay = 1;
     const lastDay = new Date(year, month + 1, 0).getDate();
@@ -501,7 +496,6 @@ function updateReceiptPreview() {
     const calculations = calculateWorkingDays(start, end, AppState.selection.absences, AppState.selection.certificates);
     const periodString = `<strong>Período:</strong> ${formatDate(start)} até ${formatDate(end)}<br>`;
 
-    // --- LÓGICA PARA FORMATAR A LISTA DE DATAS ---
     const getFormattedList = (set) => {
         const s = new Date(start);
         const e = new Date(end);
@@ -528,7 +522,6 @@ function updateReceiptPreview() {
         const totalBusinessDays = calculations.effectiveDays + calculations.absenceCount + calculations.certificateCount; 
         const prevMonthAbsences = AppState.selection.absences.size; 
         
-        // CORREÇÃO: Não subtrai os atestados do cálculo financeiro
         const effectiveDaysForVT = totalBusinessDays - prevMonthAbsences;
         totalValue = effectiveDaysForVT * RECEIPT_CONFIG.dailyValue;
         if(totalValue < 0) totalValue = 0; 
@@ -594,23 +587,33 @@ function updateReceiptPreview() {
     }
 }
 
-// --- CRUD E ARQUIVOS (AGILIDADE NO CADASTRO) ---
+// --- CRUD E ARQUIVOS (AGILIDADE + DEBUG) ---
 async function handleAddEmployee() {
+    console.log("Tentando adicionar funcionária...");
+    
     const nome = DOM.newEmployeeName.value.trim();
     let cpf = DOM.newEmployeeCpf.value.trim();
     
-    if (!nome || !cpf) return showModal("Erro", "Preencha todos os campos.");
+    if (!nome || !cpf) {
+        console.warn("Campos vazios");
+        return showModal("Erro", "Preencha todos os campos.");
+    }
     
     const cleanCpf = cpf.replace(/\D/g, '');
-    if (cleanCpf.length !== 11) return showModal("Erro", "O CPF deve ter 11 dígitos.");
+    if (cleanCpf.length !== 11) {
+        console.warn("CPF inválido");
+        return showModal("Erro", "O CPF deve ter 11 dígitos.");
+    }
     const formattedCpf = cleanCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
     
     try {
+        console.log("Enviando para o Firebase...", `artifacts/${appId}/public/data/employees`);
         await setDoc(doc(db, `artifacts/${appId}/public/data/employees`, cleanCpf), { 
             nome: capitalizeWords(nome), 
             cpf: formattedCpf 
         });
         
+        console.log("Sucesso no Firebase!");
         showModal("Sucesso", "Funcionária adicionada com sucesso!");
         
         // LIMPA OS CAMPOS E FOCA NO NOME PARA A PRÓXIMA
@@ -619,8 +622,8 @@ async function handleAddEmployee() {
         DOM.newEmployeeName.focus();
 
     } catch (e) {
-        console.error(e);
-        if (e.code === 'permission-denied') showModal("Sem Permissão", "Você precisa estar logado para salvar.");
+        console.error("Erro ao salvar:", e);
+        if (e.code === 'permission-denied') showModal("Sem Permissão", "Banco de dados bloqueado. Verifique as Regras no console do Firebase.");
         else showModal("Erro", "Falha ao salvar no banco.");
     }
 }
